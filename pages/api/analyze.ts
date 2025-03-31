@@ -83,11 +83,13 @@ export default async function handler(
   }
 }
 
-// 配置 API 路由以接受较大的请求体
+// 配置 API 路由以接受较大的请求体，并设置较长的超时时间
 export const config = {
   api: {
     bodyParser: {
       sizeLimit: '50mb',
     },
+    responseLimit: false,
+    externalResolver: true,
   },
 };
