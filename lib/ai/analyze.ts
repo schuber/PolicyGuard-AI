@@ -98,12 +98,11 @@ export async function analyzePrivacyPolicy(text: string): Promise<AnalysisResult
 
     // 4. 等待分析结果
     let result: AnalysisResult | undefined;
-    let retries = 0;
-    const maxRetries = 60; // 增加到60次，每次3秒，总共最多等待3分钟
+    let waitTime = 0;
     
-    while (retries < maxRetries) {
+    while (true) {
       const runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-      console.log('分析状态:', runStatus.status, '重试次数:', retries + 1);
+      console.log('分析状态:', runStatus.status, '已等待时间:', Math.floor(waitTime / 1000), '秒');
 
       if (runStatus.status === 'completed') {
         // 获取分析结果
@@ -191,14 +190,13 @@ export async function analyzePrivacyPolicy(text: string): Promise<AnalysisResult
         throw new Error(runStatus.last_error?.message || '分析失败');
       } else if (runStatus.status === 'expired') {
         throw new Error('分析请求已过期');
+      } else if (runStatus.status === 'cancelled') {
+        throw new Error('分析请求已取消');
       }
 
-      retries++;
-      await new Promise(resolve => setTimeout(resolve, 3000)); // 增加到3秒
-    }
-
-    if (retries >= maxRetries) {
-      throw new Error('分析超时，请重试');
+      // 每3秒检查一次状态
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      waitTime += 3000;
     }
 
     if (!result) {
