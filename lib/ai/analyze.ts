@@ -99,11 +99,11 @@ export async function analyzePrivacyPolicy(text: string): Promise<AnalysisResult
     // 4. 等待分析结果
     let result: AnalysisResult | undefined;
     let retries = 0;
-    const maxRetries = 30; // 最多等待30次，每次1秒
+    const maxRetries = 60; // 增加到60次，每次3秒，总共最多等待3分钟
     
     while (retries < maxRetries) {
       const runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-      console.log('分析状态:', runStatus.status);
+      console.log('分析状态:', runStatus.status, '重试次数:', retries + 1);
 
       if (runStatus.status === 'completed') {
         // 获取分析结果
@@ -118,11 +118,19 @@ export async function analyzePrivacyPolicy(text: string): Promise<AnalysisResult
             // 尝试解析JSON
             let jsonStr = responseText;
             // 如果响应包含在代码块中，提取JSON部分
-            const jsonMatch = responseText.match(/```(?:json)?\n?(.*?)\n?```/s);
+            const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
             if (jsonMatch) {
               jsonStr = jsonMatch[1].trim();
+            } else {
+              // 如果没有代码块，尝试查找第一个 { 和最后一个 } 之间的内容
+              const start = responseText.indexOf('{');
+              const end = responseText.lastIndexOf('}');
+              if (start !== -1 && end !== -1 && end > start) {
+                jsonStr = responseText.substring(start, end + 1);
+              }
             }
             
+            console.log('提取的JSON字符串:', jsonStr);
             const rawResult = JSON.parse(jsonStr) as RawAnalysisResult;
             console.log('解析后的JSON:', rawResult);
             
@@ -186,11 +194,11 @@ export async function analyzePrivacyPolicy(text: string): Promise<AnalysisResult
       }
 
       retries++;
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 3000)); // 增加到3秒
     }
 
     if (retries >= maxRetries) {
-      throw new Error('分析超时');
+      throw new Error('分析超时，请重试');
     }
 
     if (!result) {
